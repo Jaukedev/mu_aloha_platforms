@@ -49,7 +49,7 @@
 !if $(TARGET) == DEBUG
   gEfiMdePkgTokenSpaceGuid.PcdDebugClearMemoryValue|0xAF
   gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0x0f
-  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x800fee0f
+  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x80000042
   gEfiMdePkgTokenSpaceGuid.PcdPerformanceLibraryPropertyMask|1
   gEfiMdePkgTokenSpaceGuid.PcdPostCodePropertyMask|0
   gEfiMdePkgTokenSpaceGuid.PcdReportStatusCodePropertyMask|0x07
