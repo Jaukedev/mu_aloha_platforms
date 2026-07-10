@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Build SB/NOSB uefi for Xiaomi 10T (apollo).
-        run: bash scripts/ci_setup.sh && ./build_uefi.py -d xiaomi-apollo
+        run: bash scripts/ci_setup.sh && ./build_uefi.py -d xiaomi-apollo -t DEBUG
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v6
