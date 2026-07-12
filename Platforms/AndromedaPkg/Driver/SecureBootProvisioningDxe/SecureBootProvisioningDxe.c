@@ -150,51 +150,43 @@ TryWritePlatformSiPolicy(EFI_HANDLE SfsHandle)
     goto exit;
   }
 
-  // File already exists. No need to write it again.
+  // ALOHA-APOLLO PATCH: always provision the baked SiPolicy, even when Secure
+  // Boot is OFF (NOSB), so an unsigned AllowAll policy can be applied to trust
+  // the WOA driver signer. Only touch the Secure Boot key config when SB is
+  // actually on, so we never enable Secure Boot on the NOSB variant.
   if (Status != EFI_NOT_FOUND) {
-    // SecureBoot is off. Delete it.
-    if (!IsSecureBootOn()) {
-      PayloadFileProtocol->Delete(PayloadFileProtocol);
-      Status = EFI_SUCCESS;
+    // File already exists. Compare hash; update only if it differs.
+    Status = PayloadFileProtocol->GetInfo(
+        PayloadFileProtocol, &gEfiFileInfoGuid, &SiPolicyEfiSfsInfoSize, NULL);
+
+    if (Status == EFI_BUFFER_TOO_SMALL) {
+      EFI_FILE_INFO *FileInfo = AllocatePool(SiPolicyEfiSfsInfoSize);
+
+      Status = PayloadFileProtocol->GetInfo(
+          PayloadFileProtocol, &gEfiFileInfoGuid, &SiPolicyEfiSfsInfoSize, FileInfo);
+      SiPolicyEfiSfsSize = FileInfo->FileSize;
+    }
+
+    SiPolicyEfiSfs = AllocatePool(SiPolicyEfiSfsSize);
+    Status = PayloadFileProtocol->Read(
+        PayloadFileProtocol, &SiPolicyEfiSfsSize, SiPolicyEfiSfs);
+
+    Sha256HashAll(SiPolicyEfiSfs, SiPolicyEfiSfsSize, SiPolicyEfiSfsHash);
+    Sha256HashAll(mSiPolicyDefault, mSiPolicyDefaultSize, mSiPolicyDefaultHash);
+
+    // Compare the SiPolicy files to determine whether an update is needed.
+    if (CompareMem(SiPolicyEfiSfsHash, mSiPolicyDefaultHash, SHA256_DIGEST_SIZE) == 0) {
+      // Already up to date.
+      if (IsSecureBootOn()) {
+        Status = SetSecureBootConfig(0);
+      }
       goto exit;
     } else {
-      // Get the size of SiPolicy.p7b from the EfiSfs Volume.
-      Status = PayloadFileProtocol->GetInfo(
-          PayloadFileProtocol, &gEfiFileInfoGuid, &SiPolicyEfiSfsInfoSize, NULL);
-    
-      if (Status == EFI_BUFFER_TOO_SMALL) {
-        EFI_FILE_INFO *FileInfo = AllocatePool(SiPolicyEfiSfsInfoSize);
-
-        Status = PayloadFileProtocol->GetInfo(
-            PayloadFileProtocol, &gEfiFileInfoGuid, &SiPolicyEfiSfsInfoSize, FileInfo);
-        SiPolicyEfiSfsSize = FileInfo->FileSize;
-
-        if (!EFI_ERROR(Status)) {
-            DEBUG((EFI_D_ERROR, "SiPolicyEfiSfsSiz Size: %ld kilobyte \n", SiPolicyEfiSfsSize));
-        }
-      }
-
-      SiPolicyEfiSfs = AllocatePool(SiPolicyEfiSfsSize);
-      Status = PayloadFileProtocol->Read(
-          PayloadFileProtocol, &SiPolicyEfiSfsSize, SiPolicyEfiSfs);
-
-      Sha256HashAll(SiPolicyEfiSfs, SiPolicyEfiSfsSize, SiPolicyEfiSfsHash);
-      Sha256HashAll(mSiPolicyDefault, mSiPolicyDefaultSize, mSiPolicyDefaultHash);
-
-      // Compare the SiPolicy files to determine whether an update is needed.
-      if (CompareMem(SiPolicyEfiSfsHash, mSiPolicyDefaultHash, SHA256_DIGEST_SIZE) == 0) {
-        Status = SetSecureBootConfig(0);
-        goto exit;
-      } else {
-        // If an update is required, then delete the original SiPolicy first.
-        PayloadFileProtocol->Delete(PayloadFileProtocol);
-      }
+      // If an update is required, then delete the original SiPolicy first.
+      PayloadFileProtocol->Delete(PayloadFileProtocol);
     }
-    // File does not exist, if SB is off, do not add the file.
-  } else if (!IsSecureBootOn()) {
-      Status = EFI_SUCCESS;
-      goto exit;
   }
+  // File does not exist (or was just deleted): fall through and write it below.
 
   Status = FileProtocol->Open(
       FileProtocol, &PayloadFileProtocol,
@@ -225,7 +217,10 @@ TryWritePlatformSiPolicy(EFI_HANDLE SfsHandle)
     DEBUG((DEBUG_ERROR, "Failed to close SiPolicy.p7b: %r\n", Status));
   }
 
-  Status = SetSecureBootConfig(0);
+  // ALOHA-APOLLO PATCH: only enroll Secure Boot keys when SB is on (never on NOSB).
+  if (IsSecureBootOn()) {
+    Status = SetSecureBootConfig(0);
+  }
 
 exit:
   return Status;
