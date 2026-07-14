@@ -24,6 +24,7 @@
 #include <Library/UefiRuntimeServicesTableLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/MuSecureBootKeySelectorLib.h>
+#include <Library/PrintLib.h>
 
 #include <Guid/GlobalVariable.h>
 #include <Guid/FileInfo.h>
@@ -62,6 +63,48 @@ IsSecureBootOn()
       (DEBUG_INFO, "%a - PK doesn't exist.  Secure boot off\n", __FUNCTION__));
   return FALSE;
 #endif
+}
+
+//
+// DIAGNOSTIC: dump the actual Secure Boot enforcement state to a file on the
+// ESP so it can be read from recovery. Answers whether SecureBoot=1 (i.e.
+// whether winload will enforce the firmware SiPolicy) on this device.
+//
+STATIC
+VOID
+DumpSbDiag(EFI_FILE_PROTOCOL *Root, EFI_STATUS SbCfg)
+{
+  EFI_STATUS         Status, sSB, sSU, sPK;
+  EFI_FILE_PROTOCOL *F = NULL;
+  UINT8              SecureBoot = 0xFF, SetupMode = 0xFF, AuditMode = 0xFF, DeployedMode = 0xFF;
+  UINTN              Sz, PkSize = 0, KekSize = 0;
+  CHAR8              Buf[512];
+  UINTN              Len;
+
+  Sz = sizeof(SecureBoot);
+  sSB = gRT->GetVariable(L"SecureBoot", &gEfiGlobalVariableGuid, NULL, &Sz, &SecureBoot);
+  Sz = sizeof(SetupMode);
+  sSU = gRT->GetVariable(L"SetupMode", &gEfiGlobalVariableGuid, NULL, &Sz, &SetupMode);
+  Sz = sizeof(AuditMode);
+  gRT->GetVariable(L"AuditMode", &gEfiGlobalVariableGuid, NULL, &Sz, &AuditMode);
+  Sz = sizeof(DeployedMode);
+  gRT->GetVariable(L"DeployedMode", &gEfiGlobalVariableGuid, NULL, &Sz, &DeployedMode);
+  sPK = gRT->GetVariable(L"PK", &gEfiGlobalVariableGuid, NULL, &PkSize, NULL);
+  gRT->GetVariable(L"KEK", &gEfiGlobalVariableGuid, NULL, &KekSize, NULL);
+
+  Len = AsciiSPrint(
+      Buf, sizeof(Buf),
+      "SBConfigStatus=%r\r\nSecureBoot=%d get=%r\r\nSetupMode=%d get=%r\r\nAuditMode=%d\r\nDeployedMode=%d\r\nPKsize=%d get=%r\r\nKEKsize=%d\r\n",
+      SbCfg, (UINTN)SecureBoot, sSB, (UINTN)SetupMode, sSU, (UINTN)AuditMode,
+      (UINTN)DeployedMode, PkSize, sPK, KekSize);
+
+  Status = Root->Open(
+      Root, &F, L"\\EFI\\Microsoft\\Boot\\sbdiag.txt",
+      EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+  if (!EFI_ERROR(Status) && F != NULL) {
+    F->Write(F, &Len, Buf);
+    F->Close(F);
+  }
 }
 
 EFI_STATUS
@@ -184,6 +227,7 @@ TryWritePlatformSiPolicy(EFI_HANDLE SfsHandle)
       // Compare the SiPolicy files to determine whether an update is needed.
       if (CompareMem(SiPolicyEfiSfsHash, mSiPolicyDefaultHash, SHA256_DIGEST_SIZE) == 0) {
         Status = SetSecureBootConfig(0);
+        DumpSbDiag(FileProtocol, Status);
         goto exit;
       } else {
         // If an update is required, then delete the original SiPolicy first.
@@ -226,6 +270,7 @@ TryWritePlatformSiPolicy(EFI_HANDLE SfsHandle)
   }
 
   Status = SetSecureBootConfig(0);
+  DumpSbDiag(FileProtocol, Status);
 
 exit:
   return Status;
