@@ -56,12 +56,14 @@
     SECTION UI = "BootFailIndicator"
   }
 
+!if $(SECURE_BOOT) == 1
   FILE FREEFORM = PCD(gAndromedaPkgTokenSpaceGuid.PcdSystemIntegrityPolicyFile) {
     SECTION RAW = AndromedaPkg/Include/Resources/SecureBoot/SystemIntegrity/SiPolicy.p7b
     SECTION UI = "System Integrity Policy Default"
   }
 
   !include ArmPlatformPkg/SecureBootDefaultKeys.fdf.inc
+!endif
 ################################################################
 # UEFI Shell Change Start
   FILE APPLICATION=PCD(gPcBdsPkgTokenSpaceGuid.PcdShellFile) {
