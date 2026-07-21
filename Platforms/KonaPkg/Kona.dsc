@@ -47,6 +47,8 @@
   DB_DEFAULT_FILE3               = AndromedaPkg/Include/Resources/SecureBoot/keystore/DB/Certificates/MicCorUEFCA2011_2011-06-27.der
   DB_DEFAULT_FILE4               = AndromedaPkg/Include/Resources/SecureBoot/keystore/DB/Certificates/microsoft_uefi_ca_2023.der
   DB_DEFAULT_FILE5               = AndromedaPkg/Include/Resources/SecureBoot/keystore/DB/Certificates/microsoft_option_rom_uefi_ca_2023.der
+  DB_DEFAULT_FILE6               = AndromedaPkg/Include/Resources/SecureBoot/keystore/DB/Certificates/WOA-PCA2023.der
+  DB_DEFAULT_FILE7               = AndromedaPkg/Include/Resources/SecureBoot/keystore/DB/Certificates/WOA-CA.der
   DBX_DEFAULT_FILE1              = AndromedaPkg/Include/Resources/SecureBoot/Artifacts/Aarch64/DefaultDbx.bin
 
   DXE_CRYPTO_SERVICES            = STANDARD
